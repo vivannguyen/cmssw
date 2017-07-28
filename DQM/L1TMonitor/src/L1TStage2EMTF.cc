@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <map>
 
 #include "DQM/L1TMonitor/interface/L1TStage2EMTF.h"
 
@@ -22,154 +23,70 @@ void L1TStage2EMTF::beginLuminosityBlock(const edm::LuminosityBlock&, const edm:
 
 void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, const edm::EventSetup&) {
 
+// Monitor Dir
   ibooker.setCurrentFolder(monitorDir);
 
+  std::vector<std::string> binNamesErrors = {"Corruptions","Synch. Err.","Synch. Mod.","BX Mismatch","Time Misalign","FMM != Ready"};
+  
   // DAQ Output Monitor Elements
   emtfErrors = ibooker.book1D("emtfErrors", "EMTF Errors", 6, 0, 6);
   emtfErrors->setAxisTitle("Error Type (Corruptions Not Implemented)", 1);
   emtfErrors->setAxisTitle("Number of Errors", 2);
-  emtfErrors->setBinLabel(1, "Corruptions", 1);
-  emtfErrors->setBinLabel(2, "Synch. Err.", 1);
-  emtfErrors->setBinLabel(3, "Synch. Mod.", 1);
-  emtfErrors->setBinLabel(4, "BX Mismatch", 1);
-  emtfErrors->setBinLabel(5, "Time Misalign.", 1);
-  emtfErrors->setBinLabel(6, "FMM != Ready", 1);
+  for (unsigned int bin = 0; bin < binNamesErrors.size(); ++bin){ 
+    emtfErrors->setBinLabel(bin+1, binNamesErrors[bin], 1);
+  }
 
   // Hit (LCT) Monitor Elements
   int n_xbins, nWGs, nHSs;
   std::string name, label;
-  std::vector<std::string> suffix_name = {"42", "41", "32", "31", "22", "21", "13", "12", "11b", "11a"};
-  std::vector<std::string> suffix_label = {"4/2", "4/1", "3/2", "3/1", " 2/2", "2/1", "1/3", "1/2", "1/1b", "1/1a"};
+  std::array<std::string, 10> suffix_name{{"42", "41", "32", "31", "22", "21", "13", "12", "11b", "11a"}};
+  std::array<std::string, 10> suffix_label{{"4/2", "4/1", "3/2", "3/1", " 2/2", "2/1", "1/3", "1/2", "1/1b", "1/1a"}};
+  std::array<std::string, 12> binNames{{"ME-N", "ME-4", "ME-3", "ME-2", "ME-1b", "ME-1a", "ME+1a", "ME+1b", "ME+2", "ME+3", "ME+4", "ME+N"}};
 
-  cscLCTBX = ibooker.book2D("cscLCTBX", "CSC LCT BX", 8, -3, 5, 20, 0, 20);
+  cscLCTBX = ibooker.book2D("cscLCTBX", "CSC LCT BX", 7, -3, 4, 20, 0, 20);
   cscLCTBX->setAxisTitle("BX", 1);
-  for (int xbin = 1, xbin_label = -3; xbin <= 8; ++xbin, ++xbin_label) {
+  for (int xbin = 1, xbin_label = -3; xbin <= 7; ++xbin, ++xbin_label) {
     cscLCTBX->setBinLabel(xbin, std::to_string(xbin_label), 1);
   }
   for (int ybin = 1; ybin <= 10; ++ybin) {
     cscLCTBX->setBinLabel(ybin, "ME-" + suffix_label[ybin - 1], 2);
     cscLCTBX->setBinLabel(21 - ybin, "ME+" + suffix_label[ybin - 1], 2);
   }
-
-  ibooker.setCurrentFolder(monitorDir + "/CSCInput");
-
-  for (int hist = 0, i = 0; hist < 20; ++hist, i = hist % 10) {
-
-    if (hist < 10) {
-      name = "MENeg" + suffix_name[i];
-      label = "ME-" + suffix_label[i];
-    } else {
-      name = "MEPos" + suffix_name[9 - i];
-      label = "ME+" + suffix_label[9 - i];
-    }
-
-    if (hist < 6 || hist > 13) {
-      n_xbins = (i % 2) ? 18 : 36;
-    } else {
-      n_xbins = 36;
-    }
-
-    if (hist > 7 || hist < 11){
-      nWGs = 48;
-    } else if (hist == 6 || hist == 8 || hist == 11 || hist == 13){
-      nWGs = 96;
-    } else if (hist == 3 || hist == 16){
-      nWGs = 32;
-    } else if (hist == 4 || hist == 15){
-      nWGs = 112;
-    } else {
-      nWGs = 64;
-    }
-
-    if (hist == 6 || hist == 13 || hist == 8 || hist == 10){
-      nHSs = 128;
-    } else if (hist == 9 || hist == 10){
-      nHSs = 96;
-    } else {
-      nHSs = 160;
-    }
-
-    cscLCTStrip[hist] = ibooker.book1D("cscLCTStrip" + name, "CSC Halfstrip " + label, nHSs, 0, nHSs);
-    cscLCTStrip[hist]->setAxisTitle("Cathode Halfstrip, " + label, 1);
-
-    cscLCTWire[hist] = ibooker.book1D("cscLCTWire" + name, "CSC Wiregroup " + label, nWGs, 0, nWGs);
-    cscLCTWire[hist]->setAxisTitle("Anode Wiregroup, " + label, 1);
-
-    cscChamberStrip[hist] = ibooker.book2D("cscChamberStrip" + name, "CSC Halfstrip " + label, n_xbins, 1, 1+n_xbins, nHSs, 0, nHSs);
-    cscChamberStrip[hist]->setAxisTitle("Chamber, " + label, 1);
-    cscChamberStrip[hist]->setAxisTitle("Cathode Halfstrip", 2);
-
-    cscChamberWire[hist] = ibooker.book2D("cscChamberWire" + name, "CSC Wiregroup " + label, n_xbins, 1, 1+n_xbins, nWGs, 0, nWGs);
-    cscChamberWire[hist]->setAxisTitle("Chamber, " + label, 1);
-    cscChamberWire[hist]->setAxisTitle("Anode Wiregroup", 2);
-
-    for (int bin = 1; bin <= n_xbins; ++bin) {
-      cscChamberStrip[hist]->setBinLabel(bin, std::to_string(bin), 1);
-      cscChamberWire[hist]->setBinLabel(bin, std::to_string(bin), 1);
-    }
-  }
-
-  ibooker.setCurrentFolder(monitorDir);
-
+  
   cscLCTOccupancy = ibooker.book2D("cscLCTOccupancy", "CSC Chamber Occupancy", 54, 1, 55, 12, -6, 6);
   cscLCTOccupancy->setAxisTitle("Sector (CSCID 1-9 Unlabelled)", 1);
-  for (int bin = 1; bin < 7; bin++) {
-    cscLCTOccupancy->setBinLabel(bin * 9 - 8, std::to_string(bin), 1);
+  for (int xbin = 1; xbin < 7; ++xbin) {
+    cscLCTOccupancy->setBinLabel(xbin * 9 - 8, std::to_string(xbin), 1);
   }
-  cscLCTOccupancy->setBinLabel(1, "ME-N", 2);
-  cscLCTOccupancy->setBinLabel(2, "ME-4", 2);
-  cscLCTOccupancy->setBinLabel(3, "ME-3", 2);
-  cscLCTOccupancy->setBinLabel(4, "ME-2", 2);
-  cscLCTOccupancy->setBinLabel(5, "ME-1b", 2);
-  cscLCTOccupancy->setBinLabel(6, "ME-1a", 2);
-  cscLCTOccupancy->setBinLabel(7, "ME+1a", 2);
-  cscLCTOccupancy->setBinLabel(8, "ME+1b", 2);
-  cscLCTOccupancy->setBinLabel(9, "ME+2", 2);
-  cscLCTOccupancy->setBinLabel(10, "ME+3", 2);
-  cscLCTOccupancy->setBinLabel(11, "ME+4", 2);
-  cscLCTOccupancy->setBinLabel(12, "ME+N", 2);
-
+  for (unsigned int ybin = 0; ybin < binNames.size(); ++ybin) {
+    cscLCTOccupancy->setBinLabel(ybin+1, binNames[ybin], 2);
+  }
+  
   mpcLinkErrors = ibooker.book2D("mpcLinkErrors", "MPC Link Errors", 54, 1, 55, 12, -6, 6);
   mpcLinkErrors->setAxisTitle("Sector (CSCID 1-9 Unlabelled)", 1);
-  for (int bin = 1; bin < 7; bin++){
-    mpcLinkErrors->setBinLabel(bin * 9 - 8, std::to_string(bin), 1);
+  for (int xbin = 1; xbin < 7; ++xbin){
+    mpcLinkErrors->setBinLabel(xbin * 9 - 8, std::to_string(xbin), 1);
   }
-  mpcLinkErrors->setBinLabel(1, "ME-N", 2);
-  mpcLinkErrors->setBinLabel(2, "ME-4", 2);
-  mpcLinkErrors->setBinLabel(3, "ME-3", 2);
-  mpcLinkErrors->setBinLabel(4, "ME-2", 2);
-  mpcLinkErrors->setBinLabel(5, "ME-1b", 2);
-  mpcLinkErrors->setBinLabel(6, "ME-1a", 2);
-  mpcLinkErrors->setBinLabel(7, "ME+1a", 2);
-  mpcLinkErrors->setBinLabel(8, "ME+1b", 2);
-  mpcLinkErrors->setBinLabel(9, "ME+2", 2);
-  mpcLinkErrors->setBinLabel(10, "ME+3", 2);
-  mpcLinkErrors->setBinLabel(11, "ME+4", 2);
-  mpcLinkErrors->setBinLabel(12, "ME+N", 2);
+  for (unsigned int ybin = 0; ybin < binNames.size(); ++ybin) {
+    mpcLinkErrors->setBinLabel(ybin+1, binNames[ybin], 2);
+  }
 
   mpcLinkGood = ibooker.book2D("mpcLinkGood", "MPC Good Links", 54, 1, 55, 12, -6, 6);
   mpcLinkGood->setAxisTitle("Sector (CSCID 1-9 Unlabelled)", 1);
-  for (int bin = 1; bin < 7; bin++) mpcLinkGood->setBinLabel(bin * 9 - 8, std::to_string(bin), 1);
-  mpcLinkGood->setBinLabel(1, "ME-N", 2);
-  mpcLinkGood->setBinLabel(2, "ME-4", 2);
-  mpcLinkGood->setBinLabel(3, "ME-3", 2);
-  mpcLinkGood->setBinLabel(4, "ME-2", 2);
-  mpcLinkGood->setBinLabel(5, "ME-1b", 2);
-  mpcLinkGood->setBinLabel(6, "ME-1a", 2);
-  mpcLinkGood->setBinLabel(7, "ME+1a", 2);
-  mpcLinkGood->setBinLabel(8, "ME+1b", 2);
-  mpcLinkGood->setBinLabel(9, "ME+2", 2);
-  mpcLinkGood->setBinLabel(10, "ME+3", 2);
-  mpcLinkGood->setBinLabel(11, "ME+4", 2);
-  mpcLinkGood->setBinLabel(12, "ME+N", 2);
+  for (int xbin = 1; xbin < 7; ++xbin) {
+    mpcLinkGood->setBinLabel(xbin * 9 - 8, std::to_string(xbin), 1);
+  }
+  for (unsigned int ybin = 0; ybin < binNames.size(); ++ybin) {
+    mpcLinkGood->setBinLabel(ybin+1, binNames[ybin], 2);
+  }
 
   // RPC Monitor Elements
-  std::vector<std::string> rpc_name = {"43", "42", "33", "32", "22", "12"};
-  std::vector<std::string> rpc_label = {"4/3", "4/2", "3/3", "3/2", "2/2", "1/2"};
+  std::array<std::string, 6> rpc_name{{"43", "42", "33", "32", "22", "12"}};
+  std::array<std::string, 6> rpc_label{{"4/3", "4/2", "3/3", "3/2", "2/2", "1/2"}};
 
-  rpcHitBX = ibooker.book2D("rpcHitBX", "RPC Hit BX", 8, -3, 5, 12, 0, 12);
+  rpcHitBX = ibooker.book2D("rpcHitBX", "RPC Hit BX", 7, -3, 4, 12, 0, 12);
   rpcHitBX->setAxisTitle("BX", 1);
-  for (int xbin = 1, xbin_label = -3; xbin <= 8; ++xbin, ++xbin_label) {
+  for (int xbin = 1, xbin_label = -3; xbin <= 7; ++xbin, ++xbin_label) {
     rpcHitBX->setBinLabel(xbin, std::to_string(xbin_label), 1);
   }
   for (int ybin = 1; ybin <= 6; ++ybin) {
@@ -177,67 +94,37 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     rpcHitBX->setBinLabel(13 - ybin, "RE+" + rpc_label[ybin - 1], 2);
   }
   
-  rpcHitOccupancy = ibooker.book2D("rpcHitOccupancy", "RPC Chamber Occupancy", 36, 1, 37, 12, -6, 6);
+  rpcHitOccupancy = ibooker.book2D("rpcHitOccupancy", "RPC Chamber Occupancy", 36, 1, 37, 12, 0, 12);
   rpcHitOccupancy->setAxisTitle("Sector", 1);
-  for (int bin = 1; bin < 7; bin++){
+  for (int bin = 1; bin < 7; ++bin){
     rpcHitOccupancy->setBinLabel(bin*6 - 5, std::to_string(bin), 1);
-  }
-  for (int i = 1; i < 7; i++){
-    rpcHitOccupancy->setBinLabel(i, "RE-" + rpc_label[i - 1], 2);
-    rpcHitOccupancy->setBinLabel(13 - i, "RE+" + rpc_label[i - 1],2);
-  }
-
-  ibooker.setCurrentFolder(monitorDir + "/RPCInput");
-
-  for (int hist = 0, i = 0; hist < 12; hist++, i = hist % 6) {
-    if (hist < 6) {
-      name = "RENeg" + rpc_name[i];
-      label = "RE-" + rpc_label[i];
-    } else {
-      name = "REPos" + rpc_name[5 - i];
-      label = "RE+" + rpc_label[5 - i];
-    }
-    rpcHitPhi[hist] = ibooker.book1D("rpcHitPhi" + name, "RPC Hit Phi " + label, 1250, 0, 1250);
-    rpcHitPhi[hist]->setAxisTitle("#phi", 1);
-    rpcHitTheta[hist] = ibooker.book1D("rpcHitTheta" + name, "RPC Hit Theta " + label, 32, 0, 32);
-    rpcHitTheta[hist]->setAxisTitle("#theta", 1);
-    rpcChamberPhi[hist] = ibooker.book2D("rpcChamberPhi" + name, "RPC Chamber Phi " + label, 36, 1, 37, 1250, 0, 1250);
-    rpcChamberPhi[hist]->setAxisTitle("Chamber", 1);
-    rpcChamberPhi[hist]->setAxisTitle("#phi", 2);
-    rpcChamberTheta[hist] = ibooker.book2D("rpcChamberTheta" + name, "RPC Chamber Theta " + label, 36, 1, 37, 32, 0, 32);
-    rpcChamberTheta[hist]->setAxisTitle("Chamber", 1);
-    rpcChamberTheta[hist]->setAxisTitle("#theta", 2);
-    for (int bin = 1; bin < 37; bin++){
-      rpcChamberPhi[hist]->setBinLabel(bin, std::to_string(bin), 1);
-      rpcChamberTheta[hist]->setBinLabel(bin, std::to_string(bin), 1);
-    }
-  }
-
-  ibooker.setCurrentFolder(monitorDir);
+    rpcHitOccupancy->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
+    rpcHitOccupancy->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1],2);
+  }  
 
   // Track Monitor Elements
   emtfnTracks = ibooker.book1D("emtfnTracks", "Number of EMTF Tracks per Event", 11, 0, 11);
-  for (int bin = 1; bin <= 10; ++bin) {
-    emtfnTracks->setBinLabel(bin, std::to_string(bin - 1), 1);
+  for (int xbin = 1; xbin <= 10; ++xbin) {
+    emtfnTracks->setBinLabel(xbin, std::to_string(xbin - 1), 1);
   }
   emtfnTracks->setBinLabel(11, "Overflow", 1);
 
   emtfTracknHits = ibooker.book1D("emtfTracknHits", "Number of Hits per EMTF Track", 5, 0, 5);
-  for (int bin = 1; bin <= 5; ++bin) {
-    emtfTracknHits->setBinLabel(bin, std::to_string(bin - 1), 1);
+  for (int xbin = 1; xbin <= 5; ++xbin) {
+    emtfTracknHits->setBinLabel(xbin, std::to_string(xbin - 1), 1);
   }
 
-  emtfTrackBX = ibooker.book2D("emtfTrackBX", "EMTF Track Bunch Crossing", 12, -6, 6, 8, -3, 5);
+  emtfTrackBX = ibooker.book2D("emtfTrackBX", "EMTF Track Bunch Crossing", 12, -6, 6, 7, -3, 4);
   emtfTrackBX->setAxisTitle("Sector (Endcap)", 1);
-  for (int i = 0; i < 6; ++i) {
-    emtfTrackBX->setBinLabel(i + 1, std::to_string(6 - i) + " (-)", 1);
-    emtfTrackBX->setBinLabel(12 - i, std::to_string(6 - i) + " (+)", 1);
+  for (int xbin = 0; xbin < 6; ++xbin) {
+    emtfTrackBX->setBinLabel(xbin + 1, std::to_string(6 - xbin) + " (-)", 1);
+    emtfTrackBX->setBinLabel(12 - xbin, std::to_string(6 - xbin) + " (+)", 1);
   }
   emtfTrackBX->setAxisTitle("Track BX", 2);
-  for (int bin = 1, i = -3; bin <= 8; ++bin, ++i) {
-    emtfTrackBX->setBinLabel(bin, std::to_string(i), 2);
+  for (int ybin = 1, i = -3; ybin <= 7; ++ybin, ++i) {
+    emtfTrackBX->setBinLabel(ybin, std::to_string(i), 2);
   }
-
+  
   emtfTrackPt = ibooker.book1D("emtfTrackPt", "EMTF Track p_{T}", 256, 1, 257);
   emtfTrackPt->setAxisTitle("Track p_{T} [GeV]", 1);
 
@@ -271,13 +158,166 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
     emtfTrackQualityVsMode->setBinLabel(bin, std::to_string(bin - 1), 2);
   }
 
-  // Regional Muon Candidate Monitor Elements
+// CSC Input
+  ibooker.setCurrentFolder(monitorDir + "/CSCInput");
+
+  for (int hist = 0, i = 0; hist < 20; ++hist, i = hist % 10) {
+
+    if (hist < 10) {
+      name = "MENeg" + suffix_name[i];
+      label = "ME-" + suffix_label[i];
+    } else {
+      name = "MEPos" + suffix_name[9 - i];
+      label = "ME+" + suffix_label[9 - i];
+    }
+
+    if (hist < 6 || hist > 13) {
+      n_xbins = (i % 2) ? 18 : 36;
+    } else {
+      n_xbins = 36;
+    }
+    
+    std::array<int, 10> wiregroups{{64, 96, 64, 96, 64, 112, 32, 64, 48, 48}};
+    std::array<int, 10> halfstrips{{160, 160, 160, 160, 160, 160, 128, 160, 128, 96}};
+    
+    if (hist < 10) {
+      nWGs = wiregroups[hist];
+      nHSs = halfstrips[hist];
+    } else {
+      nWGs = wiregroups[19 - hist];
+      nHSs = halfstrips[19 - hist];
+    }
+
+    cscLCTStrip[hist] = ibooker.book1D("cscLCTStrip" + name, "CSC Halfstrip " + label, nHSs, 0, nHSs);
+    cscLCTStrip[hist]->setAxisTitle("Cathode Halfstrip, " + label, 1);
+
+    cscLCTWire[hist] = ibooker.book1D("cscLCTWire" + name, "CSC Wiregroup " + label, nWGs, 0, nWGs);
+    cscLCTWire[hist]->setAxisTitle("Anode Wiregroup, " + label, 1);
+
+    cscChamberStrip[hist] = ibooker.book2D("cscChamberStrip" + name, "CSC Halfstrip " + label, n_xbins, 1, 1+n_xbins, nHSs, 0, nHSs);
+    cscChamberStrip[hist]->setAxisTitle("Chamber, " + label, 1);
+    cscChamberStrip[hist]->setAxisTitle("Cathode Halfstrip", 2);
+
+    cscChamberWire[hist] = ibooker.book2D("cscChamberWire" + name, "CSC Wiregroup " + label, n_xbins, 1, 1+n_xbins, nWGs, 0, nWGs);
+    cscChamberWire[hist]->setAxisTitle("Chamber, " + label, 1);
+    cscChamberWire[hist]->setAxisTitle("Anode Wiregroup", 2);
+    
+    for (int bin = 1; bin <= n_xbins; ++bin) {
+      cscChamberStrip[hist]->setBinLabel(bin, std::to_string(bin), 1);
+      cscChamberWire[hist]->setBinLabel(bin, std::to_string(bin), 1);
+    }
+  }
+
+// RPC Input
+  ibooker.setCurrentFolder(monitorDir + "/RPCInput");
+
+  for (int hist = 0, i = 0; hist < 12; ++hist, i = hist % 6) {
+    if (hist < 6) {
+      name = "RENeg" + rpc_name[i];
+      label = "RE-" + rpc_label[i];
+    } else {
+      name = "REPos" + rpc_name[5 - i];
+      label = "RE+" + rpc_label[5 - i];
+    }
+    rpcHitPhi[hist] = ibooker.book1D("rpcHitPhi" + name, "RPC Hit Phi " + label, 1250, 0, 1250);
+    rpcHitPhi[hist]->setAxisTitle("#phi", 1);
+    rpcHitTheta[hist] = ibooker.book1D("rpcHitTheta" + name, "RPC Hit Theta " + label, 32, 0, 32);
+    rpcHitTheta[hist]->setAxisTitle("#theta", 1);
+    rpcChamberPhi[hist] = ibooker.book2D("rpcChamberPhi" + name, "RPC Chamber Phi " + label, 36, 1, 37, 1250, 0, 1250);
+    rpcChamberPhi[hist]->setAxisTitle("Chamber", 1);
+    rpcChamberPhi[hist]->setAxisTitle("#phi", 2);
+    rpcChamberTheta[hist] = ibooker.book2D("rpcChamberTheta" + name, "RPC Chamber Theta " + label, 36, 1, 37, 32, 0, 32);
+    rpcChamberTheta[hist]->setAxisTitle("Chamber", 1);
+    rpcChamberTheta[hist]->setAxisTitle("#theta", 2);
+    for (int xbin = 1; xbin < 37; ++xbin){
+      rpcChamberPhi[hist]->setBinLabel(xbin, std::to_string(xbin), 1);
+      rpcChamberTheta[hist]->setBinLabel(xbin, std::to_string(xbin), 1);
+    }
+  }
+
+// CSC LCT and RPC Hit Timing
+  ibooker.setCurrentFolder(monitorDir + "/Timing");
+  
+  std::array<std::string, 5> nameBX{{"BXNeg1","BXPos1","BXNeg2","BXPos2","BX0"}};
+  std::array<std::string, 5> labelBX{{"BX-1","BX+1","BX-2","BX+2","BX0"}};
+
+  for (int hist = 0;  hist < 5; ++hist){     //for histograms cscLCTTiming_[5] and cscLCTTiming_eff[3]
+
+    cscLCTTiming[hist] = ibooker.book2D("cscLCTTiming" + nameBX[hist], "CSC Chamber Occupancy " + labelBX[hist], 54, 1, 55, 12, -6, 6);
+    cscLCTTiming[hist]->setAxisTitle("Sector (CSCID 1-9 Unlabelled)", 1);
+    for (int xbin = 1; xbin < 7; ++xbin) {
+      cscLCTTiming[hist]->setBinLabel(xbin * 9 - 8, std::to_string(xbin), 1);
+    }
+    for (unsigned int ybin = 0; ybin < binNames.size(); ++ybin) {
+      cscLCTTiming[hist]->setBinLabel(ybin+1, binNames[ybin], 2);
+    }
+    
+    rpcHitTiming[hist] = ibooker.book2D("rpcHitTiming" + nameBX[hist], "RPC Chamber Occupancy " + labelBX[hist], 36, 1, 37, 12, 0, 12);
+    rpcHitTiming[hist]->setAxisTitle("Sector", 1);
+    for (int bin = 1; bin < 7; ++bin){
+      rpcHitTiming[hist]->setBinLabel(bin*6 - 5, std::to_string(bin), 1);
+      rpcHitTiming[hist]->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
+      rpcHitTiming[hist]->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1],2);
+    }
+  
+    if (hist == 4) continue;
+  
+    cscLCTTimingEff[hist] = ibooker.book2D("cscLCTTimingEff" + nameBX[hist], "CSC Chamber Occupancy Efficieny " + labelBX[hist], 54, 1, 55, 12, -6, 6);
+    cscLCTTimingEff[hist]->setAxisTitle("Sector (CSCID 1-9 Unlabelled)", 1);
+    for (int xbin = 1; xbin < 7; ++xbin) {
+      cscLCTTimingEff[hist]->setBinLabel(xbin * 9 - 8, std::to_string(xbin), 1);
+    }
+    for (unsigned int ybin = 0; ybin < binNames.size(); ++ybin) {
+      cscLCTTimingEff[hist]->setBinLabel(ybin+1, binNames[ybin], 2);
+    }
+    
+    rpcHitTimingEff[hist] = ibooker.book2D("rpcHitTimingEff" + nameBX[hist], "RPC Chamber Occupancy Efficiency " + labelBX[hist], 36, 1, 37, 12, 0, 12);
+    rpcHitTimingEff[hist]->setAxisTitle("Sector", 1);
+    for (int bin = 1; bin < 7; ++bin){
+      rpcHitTimingEff[hist]->setBinLabel(bin*6 - 5, std::to_string(bin), 1);
+      rpcHitTimingEff[hist]->setBinLabel(bin, "RE-" + rpc_label[bin - 1], 2);
+      rpcHitTimingEff[hist]->setBinLabel(13 - bin, "RE+" + rpc_label[bin - 1],2);
+    }
+  }
+      
+  rpcHitTimingInTrack = ibooker.book2D("rpcHitTimingInTrack", "RPC Hit Timing (in Track)", 7, -3, 4, 12, 0, 12);
+  rpcHitTimingInTrack->setAxisTitle("BX", 1);
+  for (int xbin = 1, xbin_label = -3; xbin <= 7; ++xbin, ++xbin_label) {
+    rpcHitTimingInTrack->setBinLabel(xbin, std::to_string(xbin_label), 1);
+  }
+  for (int ybin = 1; ybin <= 6; ++ybin) {
+    rpcHitTimingInTrack->setBinLabel(ybin, "RE-" + rpc_label[ybin - 1], 2);
+    rpcHitTimingInTrack->setBinLabel(13 - ybin, "RE+" + rpc_label[ybin - 1], 2);
+  }
+  
+  std::array<std::string, 3> nameNumStationTrack{{"4StationTrack","3StationTrack","2StationTrack"}};
+  std::array<std::string, 3> labelNumStationTrack{{"4 Station Track","3 Station Track","2 Station Track"}};
+    
+  for (int hist = 0; hist < 3; ++hist) {
+    emtfTrackBXVsCSCLCT[hist] = ibooker.book2D("emtfTrackBXVsCSCLCT" + nameNumStationTrack[hist], "EMTF Track BX vs CSC LCT " + labelNumStationTrack[hist], 7, -3, 4, 7, -3, 4);
+    emtfTrackBXVsCSCLCT[hist]->setAxisTitle("LCT BX", 1);
+    emtfTrackBXVsCSCLCT[hist]->setAxisTitle("Track BX", 2);
+    for (int bin = 1, bin_label = -3; bin <= 7; ++bin, ++bin_label) {
+      emtfTrackBXVsCSCLCT[hist]->setBinLabel(bin, std::to_string(bin_label), 1);
+      emtfTrackBXVsCSCLCT[hist]->setBinLabel(bin, std::to_string(bin_label), 2);
+    }
+    emtfTrackBXVsRPCHit[hist] = ibooker.book2D("emtfTrackBXVsRPCHit" + nameNumStationTrack[hist], "EMTF Track BX vs RPC Hit " + labelNumStationTrack[hist], 7, -3, 4, 7, -3, 4);
+    emtfTrackBXVsRPCHit[hist]->setAxisTitle("LCT BX", 1);
+    emtfTrackBXVsRPCHit[hist]->setAxisTitle("Track BX", 2);
+    for (int bin = 1, bin_label = -3; bin <= 7; ++bin, ++bin_label) {
+      emtfTrackBXVsRPCHit[hist]->setBinLabel(bin, std::to_string(bin_label), 1);
+      emtfTrackBXVsRPCHit[hist]->setBinLabel(bin, std::to_string(bin_label), 2);
+    }
+  }
+
+// Muon Cand
   ibooker.setCurrentFolder(monitorDir + "/MuonCand");
 
+  // Regional Muon Candidate Monitor Elements
   emtfMuonBX = ibooker.book1D("emtfMuonBX", "EMTF Muon Cand BX", 7, -3, 4);
   emtfMuonBX->setAxisTitle("BX", 1);
-  for (int bin = 1, bin_label = -3; bin <= 7; ++bin, ++bin_label) {
-    emtfMuonBX->setBinLabel(bin, std::to_string(bin_label), 1);
+  for (int xbin = 1, bin_label = -3; xbin <= 7; ++xbin, ++bin_label) {
+    emtfMuonBX->setBinLabel(xbin, std::to_string(bin_label), 1);
   }
 
   emtfMuonhwPt = ibooker.book1D("emtfMuonhwPt", "EMTF Muon Cand p_{T}", 512, 0, 512);
@@ -291,8 +331,8 @@ void L1TStage2EMTF::bookHistograms(DQMStore::IBooker& ibooker, const edm::Run&, 
 
   emtfMuonhwQual = ibooker.book1D("emtfMuonhwQual", "EMTF Muon Cand Quality", 16, 0, 16);
   emtfMuonhwQual->setAxisTitle("Quality", 1);
-  for (int bin = 1; bin <= 16; ++bin) {
-    emtfMuonhwQual->setBinLabel(bin, std::to_string(bin - 1), 1);
+  for (int xbin = 1; xbin <= 16; ++xbin) {
+    emtfMuonhwQual->setBinLabel(xbin, std::to_string(xbin - 1), 1);
   }
 }
 
@@ -303,7 +343,7 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
   // DAQ Output
   edm::Handle<l1t::EMTFDaqOutCollection> DaqOutCollection;
   e.getByToken(daqToken, DaqOutCollection);
-
+  
   for (std::vector<l1t::EMTFDaqOut>::const_iterator DaqOut = DaqOutCollection->begin(); DaqOut != DaqOutCollection->end(); ++DaqOut) {
     const l1t::emtf::MECollection* MECollection = DaqOut->PtrMECollection();
     for (std::vector<l1t::emtf::ME>::const_iterator ME = MECollection->begin(); ME != MECollection->end(); ++ME) {
@@ -330,7 +370,7 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
         else mpcLinkGood->Fill(j + 1 + offset, endcap * (i  + 0.5));
       }
     }
-    offset = (EventHeader->Sector() == 6 ? 0 : EventHeader->Sector()) * 9;
+    // offset = (EventHeader->Sector() == 6 ? 0 : EventHeader->Sector()) * 9;
     if (CO.ME1n_3() == 1) mpcLinkErrors->Fill(1 + offset, endcap * 5.5, (int) CO.ME1n_3());
     if (CO.ME1n_6() == 1) mpcLinkErrors->Fill(2 + offset, endcap * 5.5, (int) CO.ME1n_6());
     if (CO.ME1n_9() == 1) mpcLinkErrors->Fill(3 + offset, endcap * 5.5, (int) CO.ME1n_9());
@@ -354,6 +394,12 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
   // Hits (LCTs)
   edm::Handle<l1t::EMTFHitCollection> HitCollection;
   e.getByToken(hitToken, HitCollection);
+  
+  // Maps CSC station and ring to the monitor element index and uses symmetry of the endcaps    
+  std::map<std::pair<int,int>,int> histIndexCSC = {{{1,4},9},{{1,1},8},{{1,2},7},{{1,3},6},{{2,1},5},{{2,2},4},{{3,1},3},{{3,2},2},{{4,1},1},{{4,2},0}};
+  
+  // Maps RPC staion and ring to the monitor element index and uses symmetry of the endcaps
+  std::map<std::pair<int, int>, int> histIndexRPC = {{{4,3}, 0},{{4,2}, 1},{{3,3}, 2},{{3,2}, 3},{{2,2}, 4},{{1,2}, 5}};
 
   for (std::vector<l1t::EMTFHit>::const_iterator Hit = HitCollection->begin(); Hit != HitCollection->end(); ++Hit) {
     int endcap = Hit->Endcap();
@@ -364,50 +410,18 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
     int chamber = Hit->Chamber();
     int strip = Hit->Strip();
     int wire = Hit->Wire();
-
-    int hist_index = 0;
     int cscid_offset = (sector - 1) * 9;
-
-    // The following logic determines the index of the monitor element
-    // to which a hit belongs, exploiting the symmetry of the endcaps.
-    if (station == 1) {
-      if (ring == 4) {
-        strip -= 128;
-        hist_index = 9;
-      } else if (ring == 1) {
-        hist_index = 8;
-      } else if (ring == 2) {
-        hist_index = 7;
-      } else if (ring == 3) {
-        hist_index = 6;
-      }
-    } else if (ring == 1) {
-      if (station == 2) {
-        hist_index = 5;
-      } else if (station == 3) {
-        hist_index = 3;
-      } else if (station == 4) {
-        hist_index = 1;
-      }
-    } else if (ring == 2) {
-      if (station == 2) {
-        hist_index = 4;
-      } else if (station == 3) {
-        hist_index = 2;
-      } else if (station == 4) {
-        hist_index = 0;
-      }
-    }
-
+    
+    int hist_index = 0;
+    hist_index = histIndexCSC[{station,ring}];    
     if (endcap > 0) hist_index = 19 - hist_index;
+    if (ring == 4) strip -=128;
     
     if (Hit->Is_CSC() == true){
       cscLCTBX->Fill(Hit->BX(), hist_index);
-      
       if (Hit->Neighbor() == false){
         cscLCTStrip[hist_index]->Fill(strip);
         cscLCTWire[hist_index]->Fill(wire);
-
         cscChamberStrip[hist_index]->Fill(chamber, strip);
         cscChamberWire[hist_index]->Fill(chamber, wire);
         if (Hit->Subsector() == 1) {
@@ -416,23 +430,15 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
           cscLCTOccupancy->Fill(cscid + cscid_offset, endcap * (station + 0.5));
         }
       } else {
-        cscid_offset = (sector == 6 ? 0 : sector) * 9;
 	// Map neighbor chambers to "fake" CSC IDs: 1/3 --> 1, 1/6 --> 2, 1/9 --> 3, 2/3 --> 4, 2/9 --> 5, etc.
 	int cscid_n = (station == 1 ? (cscid / 3) : (station * 2) + ((cscid - 3) / 6) );
         cscLCTOccupancy->Fill(cscid_n + cscid_offset, endcap * 5.5);
       }
-      
     }
+   
     if (Hit->Is_RPC() == true){
-      if (station == 1) hist_index = 5;
-      else if (station == 2) hist_index = 4;
-      else if (station == 3){
-        if (ring == 2) hist_index = 3;
-        else hist_index = 2;
-      } else {
-        if (ring == 2) hist_index = 1;
-        else hist_index = 0;
-      } if (endcap > 0) hist_index = 11 - hist_index;
+      hist_index = histIndexRPC[{station,ring}];
+      if (endcap > 0) hist_index = 11 - hist_index;
       
       rpcHitBX->Fill(Hit->BX(), hist_index);
       
@@ -441,7 +447,7 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
         rpcHitTheta[hist_index]->Fill(Hit->Theta_fp() / 4);
         rpcChamberPhi[hist_index]->Fill(chamber, Hit->Phi_fp() / 4);
         rpcChamberTheta[hist_index]->Fill(chamber, Hit->Theta_fp() / 4);
-        rpcHitOccupancy->Fill((Hit->Sector_RPC() - 1) * 6 + Hit->Subsector(), hist_index - 5.5);
+        rpcHitOccupancy->Fill((Hit->Sector_RPC() - 1) * 6 + Hit->Subsector(), hist_index + 0.5);
       }
     }
   }
@@ -465,18 +471,131 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
     float phi_glob_rad = Track->Phi_glob() * PI / 180.;
     int mode = Track->Mode();
     int quality = Track->GMT_quality();
-
+    int numHits = Track->NumHits();
+    int modeNeighbor = Track->Mode_neighbor();
+    
     emtfTracknHits->Fill(Track->NumHits());
     emtfTrackBX->Fill(endcap * (sector - 0.5), Track->BX());
     emtfTrackPt->Fill(Track->Pt());
     emtfTrackEta->Fill(eta);
-    emtfTrackPhi->Fill(phi_glob_rad);
+
     emtfTrackOccupancy->Fill(eta, phi_glob_rad);
     emtfTrackMode->Fill(mode);
     emtfTrackQuality->Fill(quality);
     emtfTrackQualityVsMode->Fill(mode, quality);
-    if (mode == 15) emtfTrackPhiHighQuality->Fill(phi_glob_rad);
-   }
+    
+    if (modeNeighbor<2 || modeNeighbor==4 || modeNeighbor==8){
+      emtfTrackPhi->Fill(phi_glob_rad);
+      if (mode == 15){
+        emtfTrackPhiHighQuality->Fill(phi_glob_rad);
+      }
+    }
+    
+    // LCT and RPC Timing
+    l1t::EMTFHitCollection tmp_hits = Track->Hits();
+    int numHitsintrack_BX0 = 0;
+ 
+    unsigned int hist_index = 0;
+    
+    if (numHits == 4) { 
+      hist_index = 0;
+    }
+    else if (numHits == 3) {
+      hist_index = 1;
+    }
+    else if (numHits == 2) {
+      hist_index = 2;
+    }
+    
+    if (numHits != 1) {
+      for (int iHit = 0; iHit < Track->NumHits(); ++iHit) {
+        int trackhit_BX = Track->Hits().at(iHit).BX();
+	if (Track->Hits().at(iHit).Is_CSC() == true) {	  
+	  emtfTrackBXVsCSCLCT[hist_index]->Fill(trackhit_BX, Track->BX());
+	}
+	else if (Track->Hits().at(iHit).Is_RPC() == true) { 
+	  emtfTrackBXVsRPCHit[hist_index]->Fill(trackhit_BX, Track->BX());
+	}
+      }
+    }
+    
+    if (Track->NumHits() < 3) continue;
+    for (int iHit = 0; iHit < Track->NumHits(); ++iHit) {
+      if (Track->Hits().at(iHit).BX() == 0)
+      numHitsintrack_BX0++;
+    }
+      
+    if (numHitsintrack_BX0 < Track->NumHits() - 1) continue;
+    for (int iHit = 0; iHit < Track->NumHits(); ++iHit) {
+      l1t::EMTFHit tmpHit = Track->Hits().at(iHit);
+      int trackhitBX = Track->Hits().at(iHit).BX();
+      int cscid = Track->Hits().at(iHit).CSC_ID();
+      int ring = Track->Hits().at(iHit).Ring();
+      int station = Track->Hits().at(iHit).Station();
+      int sector = Track->Hits().at(iHit).Sector();
+      int subsector = Track->Hits().at(iHit).Subsector();
+      int cscid_offset = (sector - 1) * 9;
+      int neighbor = Track->Hits().at(iHit).Neighbor();
+      int endcap = Track->Hits().at(iHit).Endcap();	
+      int chamber = Track->Hits().at(iHit).Chamber();
+      	
+      int hist_index = 0;
+ 
+ 
+      // Maps CSC BX from -2 to 2 to monitor element cscLCTTIming
+      std::map<int, int> histIndexBX = {{0, 4}, {-1, 0}, {1, 1}, {-2, 2}, {2, 3}};
+	
+      if (Track->Hits().at(iHit).Is_CSC() == true){
+        if (neighbor == false){
+          if (subsector == 1) {
+            cscLCTTiming[histIndexBX.at(trackhitBX)]->Fill(cscid + cscid_offset, endcap * (station - 0.5));
+          }
+	  else {
+	    cscLCTTiming[histIndexBX.at(trackhitBX)]->Fill(cscid + cscid_offset, endcap * (station + 0.5));
+	  }
+	}
+        else {
+          // Map neighbor chambers to "fake" CSC IDs: 1/3 --> 1, 1/6 --> 2, 1/9 --> 3, 2/3 --> 4, 2/9 --> 5, etc.
+          int cscid_n = (station == 1 ? (cscid / 3) : (station * 2) + ((cscid - 3) / 6) );
+          cscLCTTiming[histIndexBX[trackhitBX]]->Fill(cscid_n + cscid_offset, endcap * 5.5);
+        }
+	
+        if (trackhitBX == 0 && ring == 2){
+	  for(std::vector<l1t::EMTFHit>::const_iterator Hit = HitCollection->begin(); Hit != HitCollection->end(); ++Hit){
+	    if(Hit->Is_RPC() == true && neighbor == false){
+	      if(std::abs(Track->Eta() - Hit->Eta()) < 0.1){
+	        if(Hit->Endcap() == endcap && Hit->Station() == station && Hit->Chamber() == chamber){
+		    
+		  hist_index = histIndexRPC[{Hit->Station(),Hit->Ring()}];
+                  if (Hit->Endcap() > 0) hist_index = 11 - hist_index;
+                  rpcHitTimingInTrack->Fill(Hit->BX(), hist_index + 0.5);
+		  rpcHitTiming[histIndexBX[trackhitBX]]->Fill((Hit->Sector_RPC() - 1) * 6 + Hit->Subsector(), hist_index + 0.5);
+		    
+	        }
+	      }
+	    } 
+	  }
+        }
+      }
+      
+      // Maps RPC station and ring to monitor element index
+      std::map<std::pair<int, int>, int> histIndexRPC = {{{4,3}, 0},{{4,2}, 1},{{3,3}, 2},{{3,2}, 3},{{2,2}, 4},{{1,2}, 5}};
+      
+      if (Track->Hits().at(iHit).Is_RPC() == true && neighbor == false){
+        hist_index = histIndexRPC.at({station, ring});
+        if (endcap > 0) hist_index = 11 - hist_index;
+	
+      	rpcHitTimingInTrack->Fill(Track->Hits().at(iHit).BX(), hist_index + 0.5);
+        rpcHitTiming[histIndexBX[trackhitBX]]->Fill((Track->Hits().at(iHit).Sector_RPC() - 1) * 6 + subsector, hist_index + 0.5);
+      }
+    }
+  }
+  
+  // CSC LCT and RPC Hit Timing Efficieny
+  for (int hist_index = 0; hist_index < 4; ++hist_index) {
+  cscLCTTimingEff[hist_index]->getTH2F()->Divide(cscLCTTiming[hist_index]->getTH2F(), cscLCTTiming[4]->getTH2F());
+  rpcHitTimingEff[hist_index]->getTH2F()->Divide(rpcHitTiming[hist_index]->getTH2F(), rpcHitTiming[4]->getTH2F());
+  }
 
   // Regional Muon Candidates
   edm::Handle<l1t::RegionalMuonCandBxCollection> MuonBxCollection;
@@ -492,4 +611,3 @@ void L1TStage2EMTF::analyze(const edm::Event& e, const edm::EventSetup& c) {
     }
   }
 }
-
