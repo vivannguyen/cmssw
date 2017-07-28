@@ -20,7 +20,14 @@ options.register(
 )
 
 options.register('runNumber',
-                 286520,
+                 #286520,
+		 #297722,
+		 #298593,
+		 #298653,
+		 #299184,
+		 #299325,
+		 299996,
+		 
                  VarParsing.VarParsing.multiplicity.singleton,
                  VarParsing.VarParsing.varType.int,
                  "Run number. This run number has to be present in the dataset configured with the dataset option.")
@@ -59,7 +66,11 @@ except:
   if options.dataset == 'auto':
     print "Querying DAS for a dataset..."
     import subprocess
-    out = subprocess.check_output("das_client --query 'dataset run=%d dataset=/*Express*/*/*FEVT*'" % options.runNumber, shell=True)
+   # out = subprocess.check_output("das_client --query 'dataset run=%d dataset=/*Express*/*/*FEVT*'" % options.runNumber, shell=True)
+   # out = subprocess.check_output("das_client --query 'dataset run=%d dataset=/ZeroBias1/*/RAW'" % options.runNumber, shell=True)
+   # out = subprocess.check_output("das_client --query 'dataset run=%d dataset=/DoubleMuon/*/RAW'" % options.runNumber, shell=True)
+   # out = subprocess.check_output("das_client --query 'dataset run=%d dataset=/SingleMuon/*/RAW'" % options.runNumber, shell=True)
+    out = subprocess.check_output("das_client --query 'dataset run=%d dataset=/ZeroBias/Run2017C-v1/RAW'" % options.runNumber, shell=True)
     dataset = out.splitlines()[-1]
     print "Using dataset=%s." % dataset
   else:
@@ -77,7 +88,7 @@ print "Got %d files." % len(readFiles)
 
 runstr = str(options.runNumber)
 runpattern = "*" + runstr[0:3] + "/" + runstr[3:] + "*"
-readFiles = cms.untracked.vstring([f for f in readFiles if fnmatch.fnmatch(f, runpattern)])
+#readFiles = cms.untracked.vstring([f for f in readFiles if fnmatch.fnmatch(f, runpattern)])
 lumirange =  cms.untracked.VLuminosityBlockRange(
   [ str(options.runNumber) + ":" + str(ls) 
       for ls in range(options.minLumi, options.maxLumi+1)
